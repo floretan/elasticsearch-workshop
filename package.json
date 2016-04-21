@@ -1,0 +1,16 @@
+{
+  "dependencies": {
+    "angular": "^1.5.5",
+    "angular-animate": "^1.5.5",
+    "angular-aria": "^1.5.5",
+    "angular-material": "^1.0.7",
+    "angular-messages": "^1.5.5",
+    "angular-resource": "^1.5.5",
+    "commander": "^2.9.0",
+    "config": "^1.20.1",
+    "elasticsearch": "^11.0.0",
+    "express": "^4.13.4",
+    "highland": "^2.7.4",
+    "sexagesimal": "^0.5.0"
+  }
+}
