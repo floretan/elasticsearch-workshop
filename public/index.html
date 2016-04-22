@@ -1,0 +1,226 @@
+<html lang="en" >
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Angular Material style sheet -->
+  <link rel="stylesheet" href="angular-material.min.css">
+  <link href="css/style.css" rel="stylesheet">
+</head>
+<body ng-app="App" ng-cloak>
+
+<div ng-controller="AppCtrl as app">
+
+  <md-toolbar class="md-tall">
+    <div class="md-toolbar-tools md-toolbar-tools-bottom">
+      <span>Wunder Recipes</span>
+    </div>
+  </md-toolbar>
+
+  <section layout="row" flex>
+    <md-sidenav
+      class="md-sidenav-left"
+      md-component-id="left"
+      md-is-locked-open="$mdMedia('gt-md')"
+      md-disable-backdrop
+      md-whiteframe="4">
+
+      <md-content layout-padding>
+        <form name="searchForm" ng-submit="app.updateSearchResults()">
+          <md-autocomplete
+            md-selected-item="app.selectedItem"
+            md-search-text="app.searchInput"
+            md-items="item in app.getSearchSuggestions(app.searchInput)"
+            md-item-text="item.label"
+            md-selected-item-change="app.updateSearchResults()"
+            placeholder="Enter ingredients">
+            <span md-highlight-text="app.searchInput">{{item.label}}</span>
+          </md-autocomplete>
+
+
+          <div ng-show="app.ingredientsFacet">
+            <h3 class="md-headline">Ingredients</h3>
+            <md-list>
+              <md-list-item ng-repeat="facetValue in app.ingredientsFacet">
+                <md-checkbox ng-model="app.searchParams.ingredients[facetValue.key]" ></md-checkbox>
+                <div class="md-list-item-text">
+                  {{facetValue.key}} ({{facetValue.doc_count}})
+                </div>
+              </md-list-item>
+            </md-list>
+          </div>
+
+          <div ng-show="app.sourceFacet">
+            <h3>Source</h3>
+            <md-list>
+              <md-list-item ng-repeat="facetValue in app.sourceFacet">
+                <md-checkbox ng-model="app.searchParams.sources[facetValue.key]" ></md-checkbox>
+                <div class="md-list-item-text">
+                  {{facetValue.key}} ({{facetValue.doc_count}})
+                </div>
+              </md-list-item>
+            </md-list>
+          </div>
+
+        </form>
+
+
+      </md-content>
+    </md-sidenav>
+
+    <md-content flex>
+
+      <md-toolbar class="md-hue-1">
+        <div class="md-toolbar-tools">
+          <md-button class="md-icon-button" aria-label="Search" ng-click="app.toggleSidebar()" hide-gt-md>
+            <md-icon md-svg-icon="icons/menu.svg"></md-icon>
+          </md-button>
+          <span flex></span>
+          <div ng-show="app.searchResult.hits.length">{{app.searchResult.total}} results for {{app.searchParams.input}}</div>
+        </div>
+      </md-toolbar>
+
+
+      <md-progress-linear ng-show="app.loadingSearchResults && !app.searchResult.hits.length" md-mode="indeterminate"></md-progress-linear>
+
+      <md-list>
+        <md-virtual-repeat-container id="vertical-container">
+          <md-card md-virtual-repeat="item in app.infiniteItems" md-on-demand md-theme="{{ showDarkTheme ? 'dark-grey' : 'default' }}" md-theme-watch>
+            <md-card-title>
+              <md-card-title-text>
+                <span class="md-headline">{{item.name}}</span>
+                <span class="md-subhead"><a href="{{item.url}}" target="_blank">{{item.source}}</a></span>
+              </md-card-title-text>
+
+            </md-card-title>
+            <md-card-content>
+              <p>{{item.description}}</p>
+            </md-card-content>
+            <md-card-actions layout="row" layout-align="end center">
+              <md-button class="md-icon-button" aria-label="Favorite">
+                <md-icon md-svg-icon="icons/favorite.svg"></md-icon>
+              </md-button>
+              <md-button class="md-secondary" href="{{item.url}}" target="_blank">View recipe</md-button>
+            </md-card-actions>
+          </md-card>
+        </md-virtual-repeat-container>
+      </md-list>
+    </md-content>
+  </section>
+
+</div>
+
+
+<!-- Angular Material requires Angular.js Libraries -->
+<script src="angular.min.js"></script>
+<script src="angular-resource.min.js"></script>
+<script src="angular-animate.min.js"></script>
+<script src="angular-aria.min.js"></script>
+<script src="angular-messages.min.js"></script>
+
+<!-- Angular Material Library -->
+<script src="angular-material.min.js"></script>
+
+<!-- Your application bootstrap  -->
+<script type="text/javascript">
+  /**
+   * You must include the dependency on 'ngMaterial'
+   */
+  angular.module('App', ['ngMaterial', 'ngResource'])
+    .config(function($mdThemingProvider) {
+      $mdThemingProvider.theme('default')
+        .primaryPalette('green')
+        .accentPalette('orange');
+    })
+    .controller('AppCtrl', function($resource, $http, $scope, $mdSidenav) {
+      var vm = this;
+
+      vm.toggleSidebar = function() {
+        $mdSidenav('left').toggle();
+      }
+
+      vm.searchResult = {
+        hits: []
+      };
+
+      vm.searchParams = {
+        input: '',
+        sources: {},
+        ingredients: {},
+      };
+
+      $scope.$watch('app.searchParams', function(newParams, oldParams) {
+
+
+        SearchEndpoint.query({
+          input: newParams.input,
+          sources: Object.keys(newParams.sources).filter(function(key) { return newParams.sources[key]; }),
+          ingredients: Object.keys(newParams.ingredients).filter(function(key) { return newParams.ingredients[key]; }),
+        }).$promise.then(function(response) {
+          vm.searchResult.hits = response.hits;
+          vm.searchResult.total = response.total;
+          vm.sourceFacet = response.sourceFacet;
+          vm.ingredientsFacet = response.ingredientsFacet;
+        });
+      }, true);
+
+      var SearchEndpoint = $resource('/api/search', {}, {
+        query: {method:'GET', params: {input: '', from: 0}}
+      });
+
+
+      vm.getSearchSuggestions = function(input) {
+        return $http.get('/api/suggest', {
+          params: {input: input}
+        }).then(function successCallback(response) {
+          return response.data;
+        })
+      }
+
+      vm.updateSearchResults = function() {
+        vm.searchResult.hits = [];
+        vm.searchResult.total = 0;
+        vm.loadingSearchResults = true;
+
+        // Keep track of the input, so we have it even if the field value changes.
+        vm.searchParams.input = vm.searchInput;
+        vm.searchParams.ingredients = {};
+        vm.searchParams.sources = {};
+      }
+
+      // In this example, we set up our model using a plain object.
+      // Using a class works too. All that matters is that we implement
+      // getItemAtIndex and getLength.
+      this.infiniteItems = {
+        toLoad_: 0,
+        // Required.
+        getItemAtIndex: function(index) {
+          if (index > vm.searchResult.hits.length) {
+            this.fetchMoreItems_(index);
+            return null;
+          }
+          return vm.searchResult.hits[index];
+        },
+        // Required.
+        // For infinite scroll behavior, we always return a slightly higher
+        // number than the previously loaded items.
+        getLength: function() {
+          return vm.searchResult.total;
+        },
+        fetchMoreItems_: function(index) {
+          if (this.toLoad_ < index) {
+            this.toLoad_ += 10;
+
+            SearchEndpoint.query({input: vm.searchParams.input, from: vm.searchResult.hits.length}, function(response) {
+              response.hits.forEach(function(item) {
+                vm.searchResult.hits.push(item);
+              })
+
+            });
+          }
+        }
+      };
+
+    });
+</script>
+
+</body>
+</html>
